@@ -248,7 +248,7 @@ def callback_reset_command(reset_command_msg):
 #########################################################
 
 # Initialize the server
-sio = socketio.Server(async_mode='gevent')
+sio = socketio.Server(async_mode='gevent', max_http_buffer_size=20_000_000)
 
 # Registering "connect" event handler for the server
 @sio.on('connect')

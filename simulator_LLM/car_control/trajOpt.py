@@ -453,6 +453,8 @@ def main():
 
 #step 10 import CSV
     create_CSV(CenterLine_points, "Centerline_points.csv")
+    create_CSV(inner_bound_points, "inner_bound_points.csv")
+    create_CSV(outer_bound_points, "outer_bound_points.csv")
 
 if __name__ == "__main__":
     main()

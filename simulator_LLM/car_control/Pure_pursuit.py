@@ -23,7 +23,7 @@ def position(POSE):
 
 def CSV_SAVE():
     global flag
-    with open("/home/autodrive_devkit/src/car_control/car_control/CSVs/actual.csv", mode="a") as csvfile:
+    with open("/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/actual.csv", mode="a") as csvfile:
         fieldnames = ["positions_X", "positions_y"]
         writer = csv.DictWriter(csvfile, fieldnames = fieldnames)
         if flag == 0:
@@ -181,7 +181,7 @@ def main(arg = None):
 
     # Paramaeters 
     wheel_base = 0.3240
-    file_path = '/home/autodrive_devkit/src/car_control/car_control/CSVs/Centerline_points.csv'
+    file_path = '/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/Centerline_points.csv'
     column_x = 'positions_X'
     column_y = 'positions_y'
     x_values = csv_reading(file_path, column_x)  
