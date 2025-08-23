@@ -5,19 +5,15 @@ from std_msgs.msg import Float32
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import Imu
 import time
+import os
+from ament_index_python.packages import get_package_share_directory
 
 
 yaw = 0.0
 flag = 0
 
 
-def position(POSE):
-    global X , Y, Dict, Timer
-    msg = POSE
-    X = msg.x
-    Y = msg.y
-    Dict = {"positions_X": X, "positions_y": Y}
-    CSV_SAVE()
+
 
 
 
@@ -120,25 +116,27 @@ def get_yaw(Imu):
     _, _, yaw = euler_from_quaternion(orientation_q)
 
 def get_point(Point):
-    global C_pose, yaw, flag, counter, path
+    global C_pose, yaw, path, Dict
 
-    C_pose = [0.0,0.0]
-    C_pose[0] = Point.x
-    C_pose[1] = Point.y
+    C_pose = [Point.x, Point.y]
 
-    for i in range (path.shape[0]):
-        dx = path[i][0] - C_pose[0]
-        dy = path[i][1] - C_pose[1]
-        distance = np.sqrt(dx**2 + dy**2)
-        waypoint_angle = np.arctan2(dy, dx)
-        angle_diff = abs(normalize_angle(waypoint_angle - yaw))
-        angle_diff = np.degrees(angle_diff)
+    # Log car's position
+    Dict = {"positions_X": C_pose[0], "positions_y": C_pose[1]}
+    CSV_SAVE()
 
+    # Find the nearest point on the path to the car
+    distances = np.linalg.norm(path - np.array(C_pose), axis=1)
+    nearest_index = np.argmin(distances)
+
+    # Set a lookahead distance (in terms of number of points on the path)
+    lookahead_points = 10  # This is a tunable parameter
+
+    # Find the goal point on the path
+    goal_index = min(nearest_index + lookahead_points, len(path) - 1)
+    goal_point = path[goal_index]
     
-        if distance <=2 :
-            point =  path[i]
-            calculate_curv(point)
-            return
+    # Calculate curvature and send commands
+    calculate_curv(goal_point)
 
 
 
@@ -179,27 +177,43 @@ def calculate_curv(point, wheel_base =0.3240):
 def main(arg = None):
     global path, wheel_base, node, cmd_pub, steering_pub
 
-    # Paramaeters 
+    # Initialize ROS2 first to use its features like logging and package path finding
+    rclpy.init(args=arg)
+    node = rclpy.create_node('pure_pursuit_controller')
+
+    # --- Get path to the CSV file in a ROS2-idiomatic way ---
+    try:
+        package_share_dir = get_package_share_directory('car_control')
+        file_path = os.path.join(package_share_dir, 'CSVs', 'Centerline_points.csv')
+        node.get_logger().info(f"Loading waypoints from: {file_path}")
+    except Exception as e:
+        node.get_logger().error(f"Error getting package share directory: {e}")
+        rclpy.shutdown()
+        return
+    # ---
+
+    # Paramaeters
     wheel_base = 0.3240
-    file_path = '/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/Centerline_points.csv'
     column_x = 'positions_X'
     column_y = 'positions_y'
-    x_values = csv_reading(file_path, column_x)  
-    y_values = csv_reading(file_path, column_y)   
+    x_values = csv_reading(file_path, column_x)
+    y_values = csv_reading(file_path, column_y)
     path = list(zip(x_values, y_values))
     path = np.array(path)
 
-    #Initialize ROS2
-    rclpy.init(args = arg)
+    # Check if the path was loaded correctly
+    if path.shape[0] == 0:
+        node.get_logger().error(f"Failed to load waypoints from {file_path}. Is the path correct, file not empty, and columns '{column_x}', '{column_y}' present?")
+        rclpy.shutdown()
+        return  # Exit if path is not loaded
 
-    node=rclpy.create_node('PID_wall_following')
+    node.get_logger().info(f"Successfully loaded {path.shape[0]} waypoints.")
 
-    cmd_pub = node.create_publisher(Float32, "/autodrive/f1tenth_1/throttle_command", 1) 
-    steering_pub = node.create_publisher(Float32, "/autodrive/f1tenth_1/steering_command", 1)
+    cmd_pub = node.create_publisher(Float32, "/autodrive/f1tenth_1/throttle_command", 10)
+    steering_pub = node.create_publisher(Float32, "/autodrive/f1tenth_1/steering_command", 10)
 
-    node.create_subscription( Point,"/autodrive/f1tenth_1/ips", get_point, 1)
-    node.create_subscription( Imu ,"/autodrive/f1tenth_1/imu", get_yaw , 1)
-    node.create_subscription(Point, '/autodrive/f1tenth_1/ips', position ,10)
+    node.create_subscription(Point, "/autodrive/f1tenth_1/ips", get_point, 10)
+    node.create_subscription(Imu, "/autodrive/f1tenth_1/imu", get_yaw, 10)
 
     rclpy.spin(node)
 

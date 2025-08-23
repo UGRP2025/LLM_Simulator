@@ -1,5 +1,5 @@
 import numpy as np
-import cvxpy as cp
+# import cvxpy as cp
 from scipy.ndimage import binary_dilation 
 import csv 
 from scipy.spatial import KDTree
@@ -404,11 +404,11 @@ def create_CSV(CSV, file_name):
 
 def main():
     #paths
-    yaml_path = "/home/autodrive_devkit/src/car_control/car_control/maps/iros_2024/scan_iros_map_compete2024.yaml"
-    occupancy_path = '/home/autodrive_devkit/src/car_control/car_control/CSVs/occupancy_grid.csv'
-    png_skelton_path = "/home/autodrive_devkit/src/car_control/car_control/Photos_for_Masking/Masked/Centerline.png"
-    outer_bound_path = "/home/autodrive_devkit/src/car_control/car_control/Photos_for_Masking/Masked/outer.png"
-    inner_bound_path = "/home/autodrive_devkit/src/car_control/car_control/Photos_for_Masking/Masked/ineer_bound.png"
+    yaml_path = "/home/ugrp/simulator/simulator_LLM/car_control/maps/iros_2024/scan_iros_map_compete2024.yaml"
+    occupancy_path = '/home/ugrp/simulator/simulator_LLM/car_control/CSVs/occupancy_grid.csv'
+    png_skelton_path = "/home/ugrp/simulator/simulator_LLM/car_control/Photos_for_Masking/Masked/Centerline.png"
+    outer_bound_path = "/home/ugrp/simulator/simulator_LLM/car_control/Photos_for_Masking/Masked/outer.png"
+    inner_bound_path = "/home/ugrp/simulator/simulator_LLM/car_control/Photos_for_Masking/Masked/ineer_bound.png"
 
 
 #Step one : load occupacy grid 
