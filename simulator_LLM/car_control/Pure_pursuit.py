@@ -30,11 +30,21 @@ def CSV_SAVE():
 
 def csv_reading(file_path, column_name):
     column_data = []
+    if column_name == 'positions_X':
+        column_index = 0
+    elif column_name == 'positions_y':
+        column_index = 1
+    else:
+        return []
+
     with open(file_path, mode='r') as file:
-        csv_reader = csv.DictReader(file)
+        csv_reader = csv.reader(file)
         for row in csv_reader:
-            if column_name in row:
-                column_data.append(float(row[column_name]))
+            if len(row) > column_index:
+                try:
+                    column_data.append(float(row[column_index]))
+                except ValueError:
+                    pass
     return column_data
 
 def normalize_angle(angle):
