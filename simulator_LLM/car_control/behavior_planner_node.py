@@ -8,6 +8,8 @@ import numpy as np
 import argparse
 import time
 import json
+import pandas as pd
+import json
 
 # Import all the implemented modules
 from car_control.lane_loader import load_three_lanes
@@ -124,18 +126,17 @@ class BehaviorPlanner(Node):
         # TODO: Proper scaling of outputs to simulator requirements
         throttle = speed_to_throttle(v_cmd, max_speed=self.params['vmax'])
 
-        # 7. Publish
+        # 7. Publish or Log
         if not self.offline_mode:
             self.steer_pub.publish(Float32(data=float(steer)))
             self.throttle_pub.publish(Float32(data=float(throttle)))
         else:
-            # In offline mode, we can log the output
-            log_data = {
+            # In offline mode, we return the log data for the replay loop to handle
+            return {
                 'timestamp': time.time(), 'pose': self.pose, 'yaw': self.yaw,
                 'chosen_lane': self.current_lane, 'steer': steer, 'throttle': throttle,
                 'vlm_hint': hint, 'risks': risks
             }
-            print(json.dumps(log_data))
 
     def stop_all(self):
         self.vlm.stop()
@@ -148,9 +149,36 @@ def main(args=None):
 
     if cli_args.offline_replay:
         print("Running in OFFLINE REPLAY mode.")
-        # TODO: Implement offline replay logic using pandas to read the CSV
-        # and call the control_loop manually.
-        print(f"Offline replay from {cli_args.offline_replay} is not fully implemented.")
+        try:
+            # Assuming columns are 'x', 'y', 'yaw_rad'
+            replay_df = pd.read_csv(cli_args.offline_replay)
+        except FileNotFoundError:
+            print(f"Error: Replay file not found at {cli_args.offline_replay}")
+            return
+        except KeyError:
+            print(f"Error: Replay CSV must contain 'x', 'y', and 'yaw_rad' columns.")
+            return
+
+        if not rclpy.ok():
+            rclpy.init()
+        planner_node = BehaviorPlanner(offline_mode=True)
+        output_log_path = "replay_output.jsonl"
+
+        print(f"Processing {len(replay_df)} data points from {cli_args.offline_replay}...")
+        with open(output_log_path, "w") as log_file:
+            for index, row in replay_df.iterrows():
+                planner_node.pose = (row['x'], row['y'])
+                planner_node.yaw = row['yaw_rad']
+                
+                log_data = planner_node.control_loop()
+                
+                if log_data:
+                    log_file.write(json.dumps(log_data) + '\n')
+        
+        planner_node.stop_all()
+        if rclpy.ok():
+            rclpy.shutdown()
+        print(f"Offline replay complete. Output saved to {output_log_path}")
     else:
         print("Running in LIVE ROS2 mode.")
         rclpy.init(args=args)
