@@ -139,7 +139,7 @@ def get_point(Point):
     nearest_index = np.argmin(distances)
 
     # Set a lookahead distance (in terms of number of points on the path)
-    lookahead_points = 10  # This is a tunable parameter
+    lookahead_points = 50  # This is a tunable parameter
 
     # Find the goal point on the path
     goal_index = min(nearest_index + lookahead_points, len(path) - 1)
