@@ -17,8 +17,8 @@ class Lanes:
 def _process_lane(file_path: str, ds: float = 0.2) -> Lane:
     """Loads waypoints from a CSV, resamples them to a constant distance, and computes metrics."""
     print(f"Processing lane from {file_path}...")
-    # TODO: Add assert for map units and coordinate frame
-    df = pd.read_csv(file_path)
+    # Load waypoints, assuming no header and first two columns are x, y
+    df = pd.read_csv(file_path, header=None, usecols=[0, 1], names=['x', 'y'])
     waypoints = df[['x', 'y']].to_numpy()
     print(f"  Loaded {len(waypoints)} waypoints.")
 
