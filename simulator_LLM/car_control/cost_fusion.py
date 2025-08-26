@@ -39,61 +39,52 @@ def select_lane(
     params: Dict = DEFAULT_PARAMS
 ) -> LaneName:
     """
-    Selects the best lane from a set of available lanes based on a cost function.
-
-    The cost function J(r) for a lane r is:
-    J(r) = α*(1/free_dist) + β*|κ| - γ*progress + VLM_hint + lane_change_penalty
-
-    Args:
-        metrics_by_lane: Metrics calculated for each potential lane.
-        available_lanes: A set of lane names that are considered safe to drive in.
-        hint: The suggestion from the VLM advisor.
-        previous_lane: The lane selected in the previous cycle for hysteresis.
-        params: A dictionary containing weights and other parameters.
-
-    Returns:
-        The name of the lane with the minimum cost.
+    Selects the best lane by calculating a normalized cost for each component.
+    This prevents any single metric from dominating the decision due to scale.
     """
     if not available_lanes:
-        # Default to center lane if no lanes are available (safety fallback)
         return 'center'
 
-    costs: CostDict = {}
     weights = params['weights']
     epsilon = params['epsilon']
+    raw_costs = {r: {'dist': 0.0, 'curve': 0.0, 'prog': 0.0} for r in available_lanes}
 
-    # TODO: Normalize cost components before applying weights,
-    # as they have very different scales (e.g., 1/dist vs curvature).
-
+    # 1. Calculate raw values for each cost component
     for r in available_lanes:
         metrics = metrics_by_lane.get(r, {})
-        
-        # 1. Free distance cost (higher cost for less free space)
-        free_dist = metrics.get('free_distance', epsilon)
-        cost_dist = weights['alpha'] * (1 / (free_dist + epsilon))
+        raw_costs[r]['dist'] = 1 / (metrics.get('free_distance', epsilon) + epsilon)
+        raw_costs[r]['curve'] = abs(metrics.get('curvature', 0.0))
+        # Progress is a reward, so we use its negative value in cost calculation
+        raw_costs[r]['prog'] = -metrics.get('progress', 0.0)
 
-        # 2. Curvature cost (higher cost for sharper turns)
-        curvature = metrics.get('curvature', 0.0)
-        cost_curve = weights['beta'] * abs(curvature)
+    # 2. Normalize each cost component and apply weights
+    normalized_costs: CostDict = {r: 0.0 for r in available_lanes}
+    for component in ['dist', 'curve', 'prog']:
+        values = {r: raw_costs[r][component] for r in available_lanes}
+        min_val = min(values.values())
+        max_val = max(values.values())
+        range_val = max_val - min_val
 
-        # 3. Progress reward (negative cost for making more progress)
-        progress = metrics.get('progress', 0.0)
-        cost_prog = -weights['gamma'] * progress
+        if range_val < epsilon:
+            continue # All lanes have the same cost for this component
 
-        # 4. VLM hint bonus (negative cost if hinted by VLM)
-        cost_vlm = _calculate_vlm_hint_cost(hint, r, weights['w_lane'])
+        weight = weights[{ 'dist': 'alpha', 'curve': 'beta', 'prog': 'gamma' }[component]]
+        for r in available_lanes:
+            normalized_value = (values[r] - min_val) / range_val
+            normalized_costs[r] += weight * normalized_value
 
-        # 5. Sum up the costs for lane r
-        costs[r] = cost_dist + cost_curve + cost_prog + cost_vlm
+    # 3. Add VLM hint cost (already a small, weighted value)
+    for r in available_lanes:
+        normalized_costs[r] += _calculate_vlm_hint_cost(hint, r, weights['w_lane'])
 
-    # 6. Apply hysteresis penalty for lane changes
+    # 4. Apply hysteresis penalty for lane changes
     final_costs = apply_lane_change_penalty(
-        costs,
+        normalized_costs,
         previous_lane,
         penalty=weights['delta']
     )
 
-    # 7. Select the lane with the minimum cost
+    # 5. Select the lane with the minimum final cost
     best_lane = min(final_costs, key=final_costs.get)
     
     return best_lane

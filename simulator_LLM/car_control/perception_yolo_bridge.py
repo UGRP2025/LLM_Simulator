@@ -100,8 +100,8 @@ def get_latest_detections() -> List[Detection]:
     This provides more varied scenarios for testing.
     """
     detections = []
-    # 30% chance of no detections
-    if random.random() < 0.3:
+    # 80% chance of no detections
+    if random.random() < 0.8:
         return []
 
     num_detections = random.randint(1, 3)
