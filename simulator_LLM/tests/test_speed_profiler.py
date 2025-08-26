@@ -74,17 +74,21 @@ def test_vlm_hint_slow_reduces_speed(base_metrics, base_risks, hint_slow):
     assert hint_speed < base_speed
     assert pytest.approx(hint_speed) == V_MAX * 0.7
 
-def test_vlm_hint_fast_increases_speed(base_metrics, base_risks, hint_fast):
+def test_vlm_hint_fast_increases_speed(base_risks, hint_fast):
     """Test that a 'fast' hint from VLM increases speed."""
     # First, create a scenario where speed is limited by curvature
-    metrics = {'curvature': 0.2, 'free_distance': 100.0}
+    # A curvature of 0.3 should result in a speed < V_MAX
+    metrics = {'curvature': 0.3, 'free_distance': 100.0}
     base_speed = target_speed(metrics, base_risks, None)
-    assert base_speed < V_MAX # Ensure we are not already at max speed
-    
+    assert base_speed < V_MAX  # Ensure we are not already at max speed
+
     # Now apply the fast hint
     hint_speed = target_speed(metrics, base_risks, hint_fast)
     assert hint_speed > base_speed
-    assert pytest.approx(hint_speed, V_MAX * 1.2)
+
+    # The speed should increase by the hint factor, but not exceed V_MAX
+    expected_speed = min(base_speed * 1.2, V_MAX)
+    assert hint_speed == pytest.approx(expected_speed)
 
 def test_vlm_hint_fast_is_capped(base_metrics, base_risks, hint_fast):
     """Test that 'fast' hint doesn't exceed V_MAX."""
