@@ -23,20 +23,37 @@ from car_control.safety import mask_unsafe_lanes
 # Placeholder for a new module to compute metrics
 # In a real scenario, this would be a proper module
 def compute_lane_metrics(lanes, pose, yaw, risks):
-    """Placeholder function to compute metrics for each lane."""
+    """
+    Placeholder function to compute metrics for each lane.
+    This version provides more sensible defaults and reacts to risks.
+    """
     metrics = {}
-    lanes_dict = {
-        'center': lanes.center,
-        'inner': lanes.inner,
-        'outer': lanes.outer
+    base_free_distance = 50.0  # A long, clear road ahead
+
+    # Base metrics for each lane - center is usually straightest and preferred
+    base_metrics_map = {
+        'center': {'curvature': 0.05, 'progress': 10.0},
+        'inner':  {'curvature': 0.2, 'progress': 9.5},
+        'outer':  {'curvature': 0.2, 'progress': 9.5}
     }
-    for name, lane in lanes_dict.items():
-        # Mocked metrics for demonstration
-        metrics[name] = {
-            'free_distance': 30.0 - len(name) * 5, # e.g., center=20, inner=25, outer=15
-            'curvature': 0.1 + len(name) * 0.05,
-            'progress': 10.0
-        }
+
+    for name, base_vals in base_metrics_map.items():
+        metrics[name] = base_vals.copy()
+        # Start with a high default free distance
+        free_dist = base_free_distance
+
+        # Reduce free distance based on sector risks from perception
+        # A risk score of 0.5 is a moderate risk
+        if name == 'center' and risks.get('front', 0.0) > 0.1:
+            # Penalize front risk more heavily
+            free_dist /= (1 + risks['front'] * 2)
+        if name == 'inner' and risks.get('left', 0.0) > 0.1:
+            free_dist /= (1 + risks['left'])
+        if name == 'outer' and risks.get('right', 0.0) > 0.1:
+            free_dist /= (1 + risks['right'])
+
+        metrics[name]['free_distance'] = free_dist
+
     return metrics
 
 def extract_yaw_from_quaternion(q: Quaternion) -> float:
