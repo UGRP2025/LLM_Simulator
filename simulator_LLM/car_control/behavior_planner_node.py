@@ -126,6 +126,22 @@ class BehaviorPlanner(Node):
         # TODO: Proper scaling of outputs to simulator requirements
         throttle = speed_to_throttle(v_cmd, max_speed=self.params['vmax'])
 
+        # Log the state for debugging in live mode
+        if not self.offline_mode:
+            vlm_summary = "N/A"
+            if hint:
+                vlm_summary = f"{hint.get('lane')}/{hint.get('speed')} (conf: {hint.get('confidence', 0):.2f})"
+            
+            risks_summary = f"F:{risks['front']:.1f} L:{risks['left']:.1f} R:{risks['right']:.1f}"
+
+            log_msg = (
+                f"Lane: {self.current_lane: <6} | "
+                f"Steer: {steer: .2f}, Thr: {throttle:.2f} | "
+                f"Risks: {risks_summary} | "
+                f"VLM: {vlm_summary}"
+            )
+            self.get_logger().info(log_msg)
+
         # 7. Publish or Log
         if not self.offline_mode:
             self.steer_pub.publish(Float32(data=float(steer)))

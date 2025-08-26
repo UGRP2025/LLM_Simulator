@@ -1,4 +1,5 @@
 import time
+import random
 from typing import List, Dict, Tuple, NamedTuple
 
 # --- Type Definitions ---
@@ -95,11 +96,38 @@ def get_sector_risks(
 
 def get_latest_detections() -> List[Detection]:
     """
-    Stub function to simulate getting the latest detections from a YOLO topic.
-    In a real implementation, this would subscribe to a ROS topic.
+    Stub function to simulate getting dynamic and randomized detections from a YOLO topic.
+    This provides more varied scenarios for testing.
     """
-    # Mock data for testing and demonstration
-    return [
-        Detection(bbox=(100, 200, 250, 400), class_name='cone', score=0.9, distance=10.0),
-        Detection(bbox=(500, 250, 700, 500), class_name='car', score=0.85, distance=8.0),
-    ]
+    detections = []
+    # 30% chance of no detections
+    if random.random() < 0.3:
+        return []
+
+    num_detections = random.randint(1, 3)
+    possible_classes = ['car', 'cone', 'person']
+
+    for _ in range(num_detections):
+        class_name = random.choice(possible_classes)
+        distance = random.uniform(5.0, 40.0)
+        score = random.uniform(0.75, 0.98)
+        
+        # Randomize position and size
+        image_width = DEFAULT_PARAMS['image_width']
+        x_min = random.randint(0, image_width - 100)
+        box_width = random.randint(80, 200)
+        x_max = min(x_min + box_width, image_width)
+
+        y_min = random.randint(200, 400)
+        box_height = random.randint(100, 250)
+        y_max = min(y_min + box_height, 600) # Assuming image height around 600
+
+        detection = Detection(
+            bbox=(x_min, y_min, x_max, y_max),
+            class_name=class_name,
+            score=score,
+            distance=distance
+        )
+        detections.append(detection)
+    
+    return detections
