@@ -19,40 +19,52 @@ from car_control.perception_yolo_bridge import get_sector_risks, get_latest_dete
 from car_control.vlm_advisor import VLMAdvisor
 from car_control.cost_fusion import select_lane, DEFAULT_PARAMS
 from car_control.safety import mask_unsafe_lanes
+from car_control.planner_utils import find_closest_waypoint
 
 # Placeholder for a new module to compute metrics
 # In a real scenario, this would be a proper module
 def compute_lane_metrics(lanes, pose, yaw, risks):
     """
-    Placeholder function to compute metrics for each lane.
-    This version provides more sensible defaults and reacts to risks.
+    Computes real-time metrics for each lane based on the vehicle's pose.
     """
     metrics = {}
-    base_free_distance = 50.0  # A long, clear road ahead
+    base_free_distance = 50.0  # Default lookahead distance if no obstacles
 
-    # Base metrics for each lane - center is usually straightest and preferred
-    base_metrics_map = {
-        'center': {'curvature': 0.05, 'progress': 10.0},
-        'inner':  {'curvature': 0.2, 'progress': 9.5},
-        'outer':  {'curvature': 0.2, 'progress': 9.5}
+    lanes_dict = {
+        'center': lanes.center,
+        'inner': lanes.inner,
+        'outer': lanes.outer
     }
 
-    for name, base_vals in base_metrics_map.items():
-        metrics[name] = base_vals.copy()
+    for name, lane_obj in lanes_dict.items():
+        # Find the closest point on the lane's path
+        closest_idx, dist_to_lane = find_closest_waypoint(pose, lane_obj.waypoints)
+
+        if closest_idx == -1:
+            continue # Skip if lane has no waypoints
+
+        # Get pre-computed metrics from the closest point on the path
+        # This assumes the lane data is rich with metadata
+        progress = lane_obj.meta['s'][closest_idx]
+        curvature = lane_obj.meta['curvature'][closest_idx]
+
         # Start with a high default free distance
         free_dist = base_free_distance
 
         # Reduce free distance based on sector risks from perception
-        # A risk score of 0.5 is a moderate risk
         if name == 'center' and risks.get('front', 0.0) > 0.1:
-            # Penalize front risk more heavily
             free_dist /= (1 + risks['front'] * 2)
         if name == 'inner' and risks.get('left', 0.0) > 0.1:
             free_dist /= (1 + risks['left'])
         if name == 'outer' and risks.get('right', 0.0) > 0.1:
             free_dist /= (1 + risks['right'])
 
-        metrics[name]['free_distance'] = free_dist
+        metrics[name] = {
+            'free_distance': free_dist,
+            'curvature': curvature,
+            'progress': progress,
+            'dist_to_lane': dist_to_lane # Bonus metric: how far are we from the lane center
+        }
 
     return metrics
 
