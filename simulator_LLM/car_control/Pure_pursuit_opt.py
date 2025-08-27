@@ -172,4 +172,5 @@ def main(arg=None):
         package_share_dir = get_package_share_directory('car_control')
         file_path = os.path.join(package_share_dir, 'CSVs', 'Centerline_points.csv')
         node.get_logger().info(f"Loading waypoints from: {file_path}")
-    except
+    except KeyboardInterrupt:
+        pass
