@@ -172,5 +172,35 @@ def main(arg=None):
         package_share_dir = get_package_share_directory('car_control')
         file_path = os.path.join(package_share_dir, 'CSVs', 'Centerline_points.csv')
         node.get_logger().info(f"Loading waypoints from: {file_path}")
+    except Exception as e:
+        node.get_logger().error(f"Error getting package share directory: {e}")
+        rclpy.shutdown()
+        return
+
+    # Path
+    column_x = 'positions_X'
+    column_y = 'positions_y'
+    x_values = csv_reading(file_path, column_x)
+    y_values = csv_reading(file_path, column_y)
+    path_np = np.array(list(zip(x_values, y_values)), dtype=float)
+    if path_np.shape[0] == 0:
+        node.get_logger().error("Failed to load waypoints")
+        rclpy.shutdown()
+        return
+    node.get_logger().info(f"Successfully loaded {path_np.shape[0]} waypoints.")
+    # Make it global for simplicity (keeps your original structure)
+    globals()['path'] = path_np
+
+    # Publishers & Subscribers
+    cmd_pub = node.create_publisher(Float32, "/autodrive/f1tenth_1/throttle_command", 10)
+    steering_pub = node.create_publisher(Float32, "/autodrive/f1tenth_1/steering_command", 10)
+    node.create_subscription(Point, "/autodrive/f1tenth_1/ips", get_point, 10)
+    node.create_subscription(Imu,   "/autodrive/f1tenth_1/imu", get_yaw,   10)
+
+    rclpy.spin(node)
+
+if __name__ == '__main__':
+    try:
+        main()
     except KeyboardInterrupt:
         pass
