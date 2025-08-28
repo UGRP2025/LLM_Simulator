@@ -82,7 +82,7 @@ class BehaviorPlanner(Node):
 
         # TODO: Load parameters from a YAML file
         self.params = {
-            'pp_params': { 'wheelbase': 0.33, 'lookahead_min': 1.0, 'lookahead_max': 4.5, 'max_steering_angle_deg': 30.0, 'lookahead_speed_gain': 0.35, 'lookahead_curvature_gain': 0.1 },
+            'pp_params': { 'wheelbase': 0.324, 'lookahead_min': 0.3, 'lookahead_max': 1.5, 'max_steering_angle_deg': 30.0, 'lookahead_speed_gain': 0.5, 'lookahead_curvature_gain': 0.1 },
             'vmax': 6.0,
             'safety_thresholds': {'min_free_distance': 2.0},
             'cost_fusion_params': DEFAULT_PARAMS, # from cost_fusion

@@ -1,7 +1,7 @@
 pp:
-  lookahead_min: 1.0         # m
-  lookahead_max: 4.5
-  lookahead_gain_vs_speed: 0.35
+  lookahead_min: 0.3         # m
+  lookahead_max: 1.5
+  lookahead_gain_vs_speed: 0.5
 speed:
   vmax: 6.0                   # m/s
   mu: 0.9                     # 마찰 가정

@@ -35,9 +35,9 @@ class PurePursuit:
             # Default parameters if none are provided
             self.params = {
                 'wheelbase': 0.324,
-                'lookahead_min': 1.0,
-                'lookahead_max': 4.5,
-                'lookahead_speed_gain': 0.35,
+                'lookahead_min': 0.3,
+                'lookahead_max': 1.5,
+                'lookahead_speed_gain': 0.5,
                 'lookahead_curvature_gain': 0.1, # c in the user formula
                 'max_steering_angle_deg': 30.0
             }
