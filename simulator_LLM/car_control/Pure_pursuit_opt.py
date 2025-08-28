@@ -17,8 +17,8 @@ flag = 0
 WHEEL_BASE = 0.3240  # m
 
 # Dynamic Lookahead (only mechanism kept)
-LD_MIN = 0.6   # m
-LD_MAX = 2.5   # m
+LD_MIN = 0.3   # m
+LD_MAX = 1.5   # m
 K_LD_V = 0.5   # s (lookahead growth per m/s)
 
 # Simple speed switch (as given)
