@@ -91,16 +91,16 @@ class BehaviorPlanner(Node):
         # Load lanes and instantiate controllers
         # TODO: Make file paths configurable
         self.lanes = load_three_lanes(
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/smoothed_Centerline_points.csv",
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/smoothed_inner_bound_points.csv",
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/smoothed_outer_bound_points.csv"
+            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/Centerline_points.csv",
+            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/inner_bound_points.csv",
+            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/outer_bound_points.csv"
         )
         lanes_dict = {
             'center': self.lanes.center,
             'inner': self.lanes.inner,
             'outer': self.lanes.outer
         }
-        self.pp_controllers = {name: PurePursuit(lane.waypoints, self.params['pp_params']) for name, lane in lanes_dict.items()}
+        self.pp_controllers = {name: PurePursuit(lane.waypoints, lane.meta['curvature'], self.params['pp_params']) for name, lane in lanes_dict.items()}
 
         # VLM Advisor
         self.vlm = VLMAdvisor(hz=8, timeout_s=0.08, conf_thresh=0.6)
@@ -113,7 +113,8 @@ class BehaviorPlanner(Node):
         # State variables
         self.pose = None
         self.yaw = None
-        self.current_speed = 3.0 # TODO: Estimate from pose or get from another topic
+        self.current_speed = 0.0 # Start at 0, will be estimated
+        self.last_pose_time = None
         self.current_lane = 'center'
 
         if not self.offline_mode:
@@ -126,7 +127,22 @@ class BehaviorPlanner(Node):
             # Control loop timer
             self.timer = self.create_timer(0.04, self.control_loop) # 25 Hz
 
-    def cb_pose(self, msg: Point): self.pose = (msg.x, msg.y)
+    def cb_pose(self, msg: Point):
+        current_time = self.get_clock().now().nanoseconds / 1e9
+        new_pose = (msg.x, msg.y)
+
+        if self.pose is not None and self.last_pose_time is not None:
+            dt = current_time - self.last_pose_time
+            if dt > 1e-4: # Avoid division by zero and ensure meaningful timestep
+                dist = np.linalg.norm(np.array(new_pose) - np.array(self.pose))
+                speed_raw = dist / dt
+                
+                # Low-pass filter for speed estimation (exponential moving average)
+                alpha = 0.2 
+                self.current_speed = alpha * speed_raw + (1.0 - alpha) * self.current_speed
+
+        self.pose = new_pose
+        self.last_pose_time = current_time
     def cb_imu(self, msg: Imu): self.yaw = extract_yaw_from_quaternion(msg.orientation)
 
     def control_loop(self):

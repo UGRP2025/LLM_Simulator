@@ -13,21 +13,24 @@ class PurePursuit:
     It features an adaptive lookahead distance based on vehicle speed.
     """
 
-    def __init__(self, waypoints: np.ndarray, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, waypoints: np.ndarray, curvatures: np.ndarray, params: Optional[Dict[str, Any]] = None):
         """
         Initializes the Pure Pursuit controller.
 
         Args:
             waypoints: A numpy array of shape (N, M) where N is the number of points
-                       and M >= 2 (x, y, ...). It's assumed that waypoints also contain
-                       curvature data at some column index if it's to be used.
+                       and M >= 2 (x, y, ...).
+            curvatures: A numpy array of shape (N,) containing the curvature at each waypoint.
             params: A dictionary containing controller parameters. If None, default
                     values will be used.
         """
         if waypoints.ndim != 2 or waypoints.shape[1] < 2:
             raise ValueError("Waypoints must be a 2D array with at least 2 columns (x, y).")
-        
+        if waypoints.shape[0] != curvatures.shape[0]:
+            raise ValueError("Waypoints and curvatures must have the same number of elements.")
+
         self.waypoints = waypoints
+        self.curvatures = curvatures
         self._last_best_idx = 0
 
         # TODO: Load parameters from params.yaml instead of using a stub
@@ -84,8 +87,9 @@ class PurePursuit:
         self._last_best_idx += best_idx_local
         
         # Get adaptive lookahead distance
-        # TODO: Get curvature_ahead from waypoint data
-        lookahead_dist = self._get_adaptive_lookahead(speed, curvature_ahead=0.0)
+        # Use the curvature at the vehicle's current closest point on the path
+        current_curvature = self.curvatures[self._last_best_idx]
+        lookahead_dist = self._get_adaptive_lookahead(speed, curvature_ahead=current_curvature)
 
         # Search forward from the best index to find the first point outside the lookahead radius
         for i in range(self._last_best_idx, len(self.waypoints)):
