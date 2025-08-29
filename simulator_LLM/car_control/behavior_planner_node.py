@@ -15,7 +15,7 @@ import json
 from car_control.lane_loader import load_three_lanes
 from car_control.pure_pursuit_controller import PurePursuit
 from car_control.speed_profiler import target_speed, speed_to_throttle
-from car_control.perception_yolo_bridge import get_sector_risks, get_latest_detections
+from car_control.perception_yolo_bridge import get_sector_risks, YOLOPerception, DEFAULT_PARAMS as PERCEPTION_PARAMS
 from car_control.vlm_advisor import VLMAdvisor
 from car_control.cost_fusion import select_lane, DEFAULT_PARAMS
 from car_control.safety import mask_unsafe_lanes
@@ -106,6 +106,10 @@ class BehaviorPlanner(Node):
         self.vlm = VLMAdvisor(hz=8, timeout_s=0.08, conf_thresh=0.6)
         self.vlm.start()
 
+        # Perception Module
+        # Note: The image topic might need to be adjusted based on the simulator's configuration
+        self.perception = YOLOPerception(self, image_topic="/camera/image_color")
+
         # State variables
         self.pose = None
         self.yaw = None
@@ -131,8 +135,13 @@ class BehaviorPlanner(Node):
             return
 
         # 1. Perception
-        detections = get_latest_detections() # Mocked
-        risks = get_sector_risks(detections)
+        detections = self.perception.get_latest_detections()
+        
+        # Pass the perception module's actual image width to the risk calculation
+        # This ensures the sectors are calculated correctly based on the real image size.
+        perception_params = PERCEPTION_PARAMS.copy()
+        perception_params['image_width'] = self.perception.image_width
+        risks = get_sector_risks(detections, params=perception_params)
 
         # 2. Lane Metrics
         metrics_by_lane = compute_lane_metrics(self.lanes, self.pose, self.yaw, risks)
