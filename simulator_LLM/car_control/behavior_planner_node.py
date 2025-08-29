@@ -108,7 +108,7 @@ class BehaviorPlanner(Node):
 
         # Perception Module
         # Note: The image topic might need to be adjusted based on the simulator's configuration
-        self.perception = YOLOPerception(self, image_topic="/camera/image_color")
+        self.perception = YOLOPerception(self, image_topic="/autodrive/f1tenth_1/front_camera")
 
         # State variables
         self.pose = None
