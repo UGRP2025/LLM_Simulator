@@ -91,9 +91,9 @@ class BehaviorPlanner(Node):
         # Load lanes and instantiate controllers
         # TODO: Make file paths configurable
         self.lanes = load_three_lanes(
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/Centerline_points.csv",
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/inner_bound_points.csv",
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/outer_bound_points.csv"
+            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/smoothed_Centerline_points.csv",
+            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/smoothed_inner_bound_points.csv",
+            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/smoothed_outer_bound_points.csv"
         )
         lanes_dict = {
             'center': self.lanes.center,

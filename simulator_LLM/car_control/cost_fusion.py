@@ -17,6 +17,7 @@ DEFAULT_PARAMS = {
         'gamma': 1.0,   # progress
         'delta': 0.5,   # lane_change_penalty
         'w_lane': 0.5,  # vlm_lane_hint
+        'zeta': 0.2,    # center_lane_preference
     },
     'epsilon': 1e-6
 }
@@ -77,14 +78,19 @@ def select_lane(
     for r in available_lanes:
         normalized_costs[r] += _calculate_vlm_hint_cost(hint, r, weights['w_lane'])
 
-    # 4. Apply hysteresis penalty for lane changes
+    # 4. Apply center lane preference bonus
+    for r in available_lanes:
+        if r != 'center':
+            normalized_costs[r] += weights.get('zeta', 0.2) # Add penalty to non-center lanes
+
+    # 5. Apply hysteresis penalty for lane changes
     final_costs = apply_lane_change_penalty(
         normalized_costs,
         previous_lane,
         penalty=weights['delta']
     )
 
-    # 5. Select the lane with the minimum final cost
+    # 6. Select the lane with the minimum final cost
     best_lane = min(final_costs, key=final_costs.get)
     
     return best_lane

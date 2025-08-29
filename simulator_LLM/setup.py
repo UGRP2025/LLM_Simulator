@@ -31,6 +31,7 @@ setup(
             'pure_pursuit = car_control.Pure_pursuit:main',
             'behavior_planner = car_control.behavior_planner_node:main',
             'reactive_node = car_control.reactive_node:main',
+            'vlm_drive = car_control.vlm_drive_node:main',
         ],
     },
 )#
