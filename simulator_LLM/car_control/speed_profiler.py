@@ -5,7 +5,10 @@ from typing import Optional, Dict
 G = 9.81  # Gravity
 MU = 0.9  # Assumed friction coefficient
 EPSILON = 1e-6 # Small number to avoid division by zero
-V_MAX = 6.0 # m/s, maximum speed limit
+MAX_VELOCITY = 0.5 # m/s, maximum speed limit
+MIN_VELOCITY = 0.1 # m/s, minimum speed when moving
+V_MAX = MAX_VELOCITY # For compatibility with existing code
+V_MIN = MIN_VELOCITY
 OBS_KD = 0.8 # Proportional gain for obstacle-based speed reduction
 
 # Type Aliases for clarity
@@ -65,11 +68,10 @@ def target_speed(
     v_curve = np.sqrt(max(EPSILON, MU * G / (curvature + EPSILON)))
 
     # 2. Obstacle-based speed limit
-    front_dist = risks.get('front', float('inf'))
     lane_free_dist = metrics_for_lane.get('free_distance', float('inf'))
     
-    # Use the closest obstacle distance between frontal and in-lane
-    closest_dist = min(front_dist, lane_free_dist)
+    # Use the in-lane free distance as the basis for obstacle-avoidance speed
+    closest_dist = lane_free_dist
     v_obs = OBS_KD * closest_dist
 
     # 3. Apply VLM hint
@@ -78,5 +80,9 @@ def target_speed(
     # 4. Combine and constrain
     v_target = min(v_curve, v_obs, V_MAX) * speed_factor
     
+    # If target speed is positive but below minimum, raise to minimum
+    if v_target > EPSILON:
+        v_target = max(v_target, V_MIN)
+
     # Final clamp to ensure it never exceeds absolute max speed
     return np.clip(v_target, 0.0, V_MAX)
