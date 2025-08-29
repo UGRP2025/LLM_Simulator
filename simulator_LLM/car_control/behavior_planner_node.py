@@ -116,6 +116,10 @@ class BehaviorPlanner(Node):
         self.current_speed = 0.0 # Start at 0, will be estimated
         self.last_pose_time = None
         self.current_lane = 'center'
+        # Watchdog timers for stale data
+        self.last_ips_time = None
+        self.last_imu_time = None
+        self.data_timeout_sec = 1.0 # Seconds to wait before considering data stale
 
         if not self.offline_mode:
             # Publishers
@@ -128,11 +132,12 @@ class BehaviorPlanner(Node):
             self.timer = self.create_timer(0.04, self.control_loop) # 25 Hz
 
     def cb_pose(self, msg: Point):
-        current_time = self.get_clock().now().nanoseconds / 1e9
+        self.last_ips_time = self.get_clock().now()
+        current_time_sec = self.last_ips_time.nanoseconds / 1e9
         new_pose = (msg.x, msg.y)
 
         if self.pose is not None and self.last_pose_time is not None:
-            dt = current_time - self.last_pose_time
+            dt = current_time_sec - self.last_pose_time
             if dt > 1e-4: # Avoid division by zero and ensure meaningful timestep
                 dist = np.linalg.norm(np.array(new_pose) - np.array(self.pose))
                 speed_raw = dist / dt
@@ -142,12 +147,25 @@ class BehaviorPlanner(Node):
                 self.current_speed = alpha * speed_raw + (1.0 - alpha) * self.current_speed
 
         self.pose = new_pose
-        self.last_pose_time = current_time
-    def cb_imu(self, msg: Imu): self.yaw = extract_yaw_from_quaternion(msg.orientation)
+        self.last_pose_time = current_time_sec
+
+    def cb_imu(self, msg: Imu):
+        self.last_imu_time = self.get_clock().now()
+        self.yaw = extract_yaw_from_quaternion(msg.orientation)
 
     def control_loop(self):
-        if self.pose is None or self.yaw is None:
-            self.get_logger().warn("Waiting for pose and yaw data...")
+        # --- Safety: Check for stale sensor data ---
+        current_time = self.get_clock().now()
+        if self.last_ips_time is None or (current_time - self.last_ips_time).nanoseconds / 1e9 > self.data_timeout_sec:
+            self.get_logger().error(f"IPS data is stale (older than {self.data_timeout_sec}s). Halting control.")
+            self.throttle_pub.publish(Float32(data=0.0))
+            self.steer_pub.publish(Float32(data=0.0))
+            return
+
+        if self.last_imu_time is None or (current_time - self.last_imu_time).nanoseconds / 1e9 > self.data_timeout_sec:
+            self.get_logger().error(f"IMU data is stale (older than {self.data_timeout_sec}s). Halting control.")
+            self.throttle_pub.publish(Float32(data=0.0))
+            self.steer_pub.publish(Float32(data=0.0))
             return
 
         # 1. Perception

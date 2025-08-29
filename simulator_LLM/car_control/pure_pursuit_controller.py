@@ -57,10 +57,11 @@ class PurePursuit:
 
     def _get_adaptive_lookahead(self, speed: float, curvature_ahead: float = 0.0) -> float:
         """
-        Calculates the adaptive lookahead distance (Ld).
-        Ld = clamp(Lmin + k * v - c * |κ_ahead|, Lmin, Lmax)
+        Calculates the adaptive lookahead distance (Ld) based on speed.
+        The curvature term has been removed to match the reference implementation and improve stability.
+        Ld = clamp(Lmin + k * v, Lmin, Lmax)
         """
-        ld = self.L_min + self.k_speed * speed - self.c_curvature * abs(curvature_ahead)
+        ld = self.L_min + self.k_speed * speed
         return np.clip(ld, self.L_min, self.L_max)
 
     def _find_target_point(self, pose: Pose2D, speed: float) -> Optional[Tuple[np.ndarray, float]]:
@@ -91,29 +92,16 @@ class PurePursuit:
         current_curvature = self.curvatures[self._last_best_idx]
         lookahead_dist = self._get_adaptive_lookahead(speed, curvature_ahead=current_curvature)
 
-        # Search forward from the best index to find the first point outside the lookahead radius
-        for i in range(self._last_best_idx, len(self.waypoints)):
-            dist_to_point = np.linalg.norm(self.waypoints[i, :2] - pose)
-            if dist_to_point > lookahead_dist:
-                return self.waypoints[i], lookahead_dist
-        
-        # If the loop completes, the end of the path is within the lookahead distance.
-        # Target the last point on the path to ensure completion.
-        last_point = self.waypoints[-1]
+        # Search forward from the closest index by accumulating path distance (more robust)
+        goal_idx = self._last_best_idx
+        accumulated_dist = 0.0
+        while goal_idx < len(self.waypoints) - 1 and accumulated_dist < lookahead_dist:
+            dist_step = np.linalg.norm(self.waypoints[goal_idx + 1, :2] - self.waypoints[goal_idx, :2])
+            accumulated_dist += dist_step
+            goal_idx += 1
 
-        # Check if the vehicle is past the last point of the path
-        if self._last_best_idx >= len(self.waypoints) - 1:
-            path_end_vec = self.waypoints[-1][:2] - self.waypoints[-2][:2]
-            pose_vec = np.array(pose) - self.waypoints[-1][:2]
-            # If the dot product is positive, the vehicle is ahead of the last point
-            if np.dot(path_end_vec, pose_vec) > 0:
-                return None
-
-        dist_to_last = np.linalg.norm(last_point[:2] - pose)
-        if dist_to_last > 1e-3:  # Avoid re-targeting if already at the destination
-            return last_point, lookahead_dist
-
-        return None # End of path
+        # Return the found goal point
+        return self.waypoints[goal_idx], lookahead_dist
 
     def compute_steer(self, pose: Pose2D, yaw: float, speed: float) -> float:
         """
