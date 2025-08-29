@@ -15,9 +15,9 @@ DEFAULT_PARAMS = {
         'alpha': 2.0,   # free_distance
         'beta': 1.0,    # curvature
         'gamma': 1.0,   # progress
-        'delta': 0.5,   # lane_change_penalty
+        'delta': 0.3,   # lane_change_penalty
         'w_lane': 0.5,  # vlm_lane_hint
-        'zeta': 0.2,    # center_lane_preference
+        'zeta': 0.4,    # center_lane_preference
     },
     'epsilon': 1e-6
 }
