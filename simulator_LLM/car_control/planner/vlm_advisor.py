@@ -131,7 +131,8 @@ class VLMAdvisor:
         return """
         TASK: Pick a lane (inner, center, or outer) and speed (slow, normal, or fast) for a racing scenario.
         RULES: Prioritize safety and speed. Avoid collisions. Stay on the track.
-        OUTPUT_JSON: Respond with a single JSON object containing "lane", "speed", "reason", and "confidence".
+        OUTPUT_JSON: Respond with a single JSON object. The "confidence" key must be a float between 0.0 and 1.0.
+        The JSON object must contain the following keys: "lane", "speed", "reason", and "confidence".
         """
 
     def _encode_image(self, image_msg: Image) -> str:
@@ -160,18 +161,9 @@ class VLMAdvisor:
         if not all(key in data for key in required_keys):
             self.node.get_logger().warn(f"[VLM] JSON missing required keys: {data}")
             return None
-
-        # --- Confidence validation and normalization ---
-        confidence = data.get('confidence')
-        if isinstance(confidence, str):
-            confidence_map = {'high': 0.9, 'medium': 0.6, 'low': 0.3}
-            numeric_confidence = confidence_map.get(confidence.lower())
-            if numeric_confidence is None:
-                self.node.get_logger().warn(f"[VLM] Unknown confidence string: '{confidence}'")
-                return None
-            data['confidence'] = numeric_confidence # Replace string with number
-        elif not isinstance(confidence, (int, float)):
-            self.node.get_logger().warn(f"[VLM] Invalid confidence type: {data}")
+        
+        if not isinstance(data.get('confidence'), (int, float)):
+            self.node.get_logger().warn(f"[VLM] Invalid confidence type in JSON: {data}")
             return None
 
         # Confidence threshold validation
