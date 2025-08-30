@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 
 import cv2
 from cv_bridge import CvBridge
-from openai import OpenAI, APIError, Timeout
+from openai import OpenAI, APIError, APITimeoutError
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 
@@ -30,7 +30,6 @@ class VLMAdvisor:
         self.vlm_connected = False
 
         # Get parameters
-        self.hz = self.params['hz']
         self.timeout_s = self.params['timeout_s']
         self.conf_thresh = self.params['conf_thresh']
         self.jpeg_w = self.params['jpeg_w']
@@ -64,7 +63,7 @@ class VLMAdvisor:
             self.client.models.list(timeout=5.0) # Short timeout for connection check
             self.vlm_connected = True
             self.node.get_logger().info("[VLM] Successfully connected to VLM server.")
-        except (APIError, Timeout) as e:
+        except (APIError, APITimeoutError) as e:
             self.node.get_logger().error(f"[VLM] Connection failed: {e}. Running without VLM hints.")
             self.vlm_connected = False
 
@@ -100,8 +99,6 @@ class VLMAdvisor:
     def _advisor_loop(self):
         """The main loop for the advisor thread."""
         while self._running:
-            loop_start_time = time.time()
-
             if not self.vlm_connected:
                 if time.time() - self._last_log_time > 5.0: # Log every 5 seconds
                     self.node.get_logger().warn("[VLM] Not connected, skipping hint generation.")
@@ -121,9 +118,7 @@ class VLMAdvisor:
             validated_hint = self._parse_and_validate(json_str)
             self._update_hint(validated_hint)
 
-            elapsed_time = time.time() - loop_start_time
-            sleep_duration = max(0, (1.0 / self.hz) - elapsed_time)
-            time.sleep(sleep_duration)
+            # No sleep here, run the next request immediately
 
     def _build_context(self) -> str:
         """Builds the text context/prompt for the VLM."""
@@ -191,6 +186,6 @@ class VLMAdvisor:
                 stream=False
             )
             return response.choices[0].message.content
-        except (APIError, Timeout) as e:
+        except (APIError, APITimeoutError) as e:
             self.node.get_logger().error(f"[VLM ERROR] {e}")
             return None

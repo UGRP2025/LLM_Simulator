@@ -39,7 +39,6 @@ vlm_params:
   api_base: "http://127.0.0.1:8000/v1"
   api_key: "EMPTY"
   model: "qwen2_5_vl"
-  hz: 3.0
   timeout_s: 0.3  # Timeout for the VLM call
   conf_thresh: 0.5 # Confidence threshold
   jpeg_w: 640
