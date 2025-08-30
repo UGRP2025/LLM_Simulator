@@ -178,14 +178,25 @@ class BehaviorPlanner(Node):
         # 2. Lane Metrics
         metrics_by_lane = compute_lane_metrics(self.lanes, self.pose, self.yaw, risks)
 
-        # 3. VLM Hint
+        # 3. Update VLM context data
+        context_data = {
+            'ego': {
+                'speed': self.current_speed,
+                'current_lane': self.current_lane
+            },
+            'risks': risks,
+            'metrics': metrics_by_lane
+        }
+        self.vlm.update_context_data(context_data)
+
+        # 4. VLM Hint
         hint = self.vlm.latest_hint()
 
-        # 4. Safety Masking
+        # 5. Safety Masking
         unsafe_lanes = mask_unsafe_lanes(metrics_by_lane, self.params['safety_thresholds'])
         available_lanes = {'center', 'inner', 'outer'} - unsafe_lanes
 
-        # 5. Lane Selection
+        # 6. Lane Selection
         self.current_lane = select_lane(metrics_by_lane, available_lanes, hint, self.current_lane, self.params['cost_fusion_params'])
 
         # 6. Low-level Control
