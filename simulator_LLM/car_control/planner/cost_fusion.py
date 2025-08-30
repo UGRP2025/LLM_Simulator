@@ -1,5 +1,6 @@
 from typing import Dict, Optional, Set
 import numpy as np
+import time
 
 from car_control.planner.safety import apply_lane_change_penalty
 
@@ -10,15 +11,28 @@ HintDict = Dict[str, any]
 ParamsDict = Dict[str, float]
 CostDict = Dict[LaneName, float]
 
-def _calculate_vlm_hint_cost(hint: Optional[HintDict], lane_name: LaneName, w_lane: float) -> float:
+def _calculate_vlm_hint_cost(hint: Optional[HintDict], lane_name: LaneName, params: Dict) -> float:
     """
     Calculates the cost reduction (bonus) based on the VLM lane hint.
-    A hint for a specific lane reduces its cost.
+    The bonus decays linearly with the age of the hint.
     """
-    if hint and hint.get('lane') == lane_name:
-        # This is a cost reduction, so we return a negative value
-        return -w_lane
-    return 0.0
+    if not hint or hint.get('lane') != lane_name or 'timestamp' not in hint:
+        return 0.0
+
+    weights = params['weights']
+    w_lane = weights.get('w_lane', 0.5)
+    max_age_s = weights.get('max_hint_age_s', 2.0)
+
+    hint_age = time.time() - hint['timestamp']
+
+    if hint_age > max_age_s:
+        return 0.0 # Hint is too old
+
+    # Linear decay of the hint's influence
+    age_scaling_factor = 1.0 - (hint_age / max_age_s)
+    
+    # This is a cost reduction (bonus), so we return a negative value
+    return -w_lane * age_scaling_factor
 
 def select_lane(
     metrics_by_lane: MetricsByLane,
@@ -57,14 +71,15 @@ def select_lane(
         if range_val < epsilon:
             continue # All lanes have the same cost for this component
 
-        weight = weights[{ 'dist': 'alpha', 'curve': 'beta', 'prog': 'gamma' }[component]]
+        weight_key = {'dist': 'alpha', 'curve': 'beta', 'prog': 'gamma'}[component]
+        weight = weights.get(weight_key, 1.0)
         for r in available_lanes:
             normalized_value = (values[r] - min_val) / range_val
             normalized_costs[r] += weight * normalized_value
 
-    # 3. Add VLM hint cost (already a small, weighted value)
+    # 3. Add VLM hint cost, which is now dynamically weighted by age
     for r in available_lanes:
-        normalized_costs[r] += _calculate_vlm_hint_cost(hint, r, weights['w_lane'])
+        normalized_costs[r] += _calculate_vlm_hint_cost(hint, r, params)
 
     # 4. Apply center lane preference bonus
     for r in available_lanes:
@@ -75,7 +90,7 @@ def select_lane(
     final_costs = apply_lane_change_penalty(
         normalized_costs,
         previous_lane,
-        penalty=weights['delta']
+        penalty=weights.get('delta', 0.3)
     )
 
     # 6. Select the lane with the minimum final cost

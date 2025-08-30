@@ -114,8 +114,13 @@ class VLMAdvisor:
                 continue
 
             context = self._build_context()
+            request_time = time.time()
             json_str = self.call_hf_qwen_model(context, image)
             validated_hint = self._parse_and_validate(json_str)
+
+            if validated_hint:
+                validated_hint['timestamp'] = request_time
+            
             self._update_hint(validated_hint)
 
             # No sleep here, run the next request immediately
@@ -150,14 +155,26 @@ class VLMAdvisor:
             self.node.get_logger().warn(f"[VLM] Failed to parse JSON: {json_str}")
             return None
 
+        # Schema validation
         required_keys = ["lane", "speed", "reason", "confidence"]
         if not all(key in data for key in required_keys):
             self.node.get_logger().warn(f"[VLM] JSON missing required keys: {data}")
             return None
-        if not isinstance(data['confidence'], (int, float)):
+
+        # --- Confidence validation and normalization ---
+        confidence = data.get('confidence')
+        if isinstance(confidence, str):
+            confidence_map = {'high': 0.9, 'medium': 0.6, 'low': 0.3}
+            numeric_confidence = confidence_map.get(confidence.lower())
+            if numeric_confidence is None:
+                self.node.get_logger().warn(f"[VLM] Unknown confidence string: '{confidence}'")
+                return None
+            data['confidence'] = numeric_confidence # Replace string with number
+        elif not isinstance(confidence, (int, float)):
             self.node.get_logger().warn(f"[VLM] Invalid confidence type: {data}")
             return None
 
+        # Confidence threshold validation
         if data['confidence'] < self.conf_thresh:
             return None
 

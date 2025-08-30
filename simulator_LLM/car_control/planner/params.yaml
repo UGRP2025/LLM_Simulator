@@ -25,6 +25,7 @@ cost_fusion_params:
     delta: 0.3   # lane_change_penalty
     w_lane: 0.5  # vlm_lane_hint
     zeta: 0.4    # center_lane_preference
+    max_hint_age_s: 2.0 # Max age of a VLM hint before its weight becomes 0
   epsilon: 1.0e-6
 
 # Paths for lane data CSV files
@@ -39,7 +40,7 @@ vlm_params:
   api_base: "http://127.0.0.1:8000/v1"
   api_key: "EMPTY"
   model: "qwen2_5_vl"
-  timeout_s: 0.3  # Timeout for the VLM call
+  timeout_s: 3.5  # Timeout for the VLM call
   conf_thresh: 0.5 # Confidence threshold
   jpeg_w: 640
   jpeg_h: 384
