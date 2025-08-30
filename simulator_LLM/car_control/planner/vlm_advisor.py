@@ -27,6 +27,7 @@ class VLMAdvisor:
         self.node = node
         self.params = params
         self.bridge = CvBridge()
+        self.vlm_connected = False
 
         # Get parameters
         self.hz = self.params['hz']
@@ -44,6 +45,7 @@ class VLMAdvisor:
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._running = False
+        self._last_log_time = 0
 
         # Subscribe to the camera topic
         self.node.create_subscription(
@@ -52,6 +54,19 @@ class VLMAdvisor:
             self.image_callback,
             1
         )
+        
+        # Check connection to VLM server
+        self._check_vlm_connection()
+
+    def _check_vlm_connection(self):
+        """Checks if the VLM server is reachable."""
+        try:
+            self.client.models.list(timeout=5.0) # Short timeout for connection check
+            self.vlm_connected = True
+            self.node.get_logger().info("[VLM] Successfully connected to VLM server.")
+        except (APIError, Timeout) as e:
+            self.node.get_logger().error(f"[VLM] Connection failed: {e}. Running without VLM hints.")
+            self.vlm_connected = False
 
     def image_callback(self, msg: Image):
         """Stores the latest image message."""
@@ -86,6 +101,13 @@ class VLMAdvisor:
         """The main loop for the advisor thread."""
         while self._running:
             loop_start_time = time.time()
+
+            if not self.vlm_connected:
+                if time.time() - self._last_log_time > 5.0: # Log every 5 seconds
+                    self.node.get_logger().warn("[VLM] Not connected, skipping hint generation.")
+                    self._last_log_time = time.time()
+                time.sleep(1.0)
+                continue
 
             with self._lock:
                 image = self._latest_image
