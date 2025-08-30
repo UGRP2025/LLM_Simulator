@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Set
 import numpy as np
 
-from car_control.safety import apply_lane_change_penalty
+from car_control.planner.safety import apply_lane_change_penalty
 
 # --- Type Aliases ---
 LaneName = str
@@ -9,18 +9,6 @@ MetricsByLane = Dict[LaneName, Dict[str, float]]
 HintDict = Dict[str, any]
 ParamsDict = Dict[str, float]
 CostDict = Dict[LaneName, float]
-
-DEFAULT_PARAMS = {
-    'weights': {
-        'alpha': 2.0,   # free_distance
-        'beta': 1.0,    # curvature
-        'gamma': 1.0,   # progress
-        'delta': 0.3,   # lane_change_penalty
-        'w_lane': 0.5,  # vlm_lane_hint
-        'zeta': 0.4,    # center_lane_preference
-    },
-    'epsilon': 1e-6
-}
 
 def _calculate_vlm_hint_cost(hint: Optional[HintDict], lane_name: LaneName, w_lane: float) -> float:
     """
@@ -37,7 +25,7 @@ def select_lane(
     available_lanes: Set[LaneName],
     hint: Optional[HintDict],
     previous_lane: Optional[LaneName],
-    params: Dict = DEFAULT_PARAMS
+    params: Dict
 ) -> LaneName:
     """
     Selects the best lane by calculating a normalized cost for each component.

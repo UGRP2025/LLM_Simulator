@@ -9,17 +9,18 @@ import argparse
 import time
 import json
 import pandas as pd
-import json
+import yaml
+import os
 
 # Import all the implemented modules
-from car_control.lane_loader import load_three_lanes
-from car_control.pure_pursuit_controller import PurePursuit
-from car_control.speed_profiler import target_speed, speed_to_throttle
-from car_control.perception_yolo_bridge import get_sector_risks, YOLOPerception, DEFAULT_PARAMS as PERCEPTION_PARAMS
-from car_control.vlm_advisor import VLMAdvisor
-from car_control.cost_fusion import select_lane, DEFAULT_PARAMS
-from car_control.safety import mask_unsafe_lanes
-from car_control.planner_utils import find_closest_waypoint
+from car_control.planner.lane_loader import load_three_lanes
+from car_control.planner.pure_pursuit_controller import PurePursuit
+from car_control.planner.speed_profiler import target_speed, speed_to_throttle
+from car_control.planner.perception_yolo_bridge import get_sector_risks, YOLOPerception, DEFAULT_PARAMS as PERCEPTION_PARAMS
+from car_control.planner.vlm_advisor import VLMAdvisor
+from car_control.planner.cost_fusion import select_lane
+from car_control.planner.safety import mask_unsafe_lanes
+from car_control.planner.planner_utils import find_closest_waypoint
 
 # Placeholder for a new module to compute metrics
 # In a real scenario, this would be a proper module
@@ -80,20 +81,17 @@ class BehaviorPlanner(Node):
         super().__init__('behavior_planner')
         self.offline_mode = offline_mode
 
-        # TODO: Load parameters from a YAML file
-        self.params = {
-            'pp_params': { 'wheelbase': 0.324, 'lookahead_min': 0.3, 'lookahead_max': 1.5, 'max_steering_angle_deg': 30.0, 'lookahead_speed_gain': 0.5, 'lookahead_curvature_gain': 0.1 },
-            'vmax': 6.0,
-            'safety_thresholds': {'min_free_distance': 2.0},
-            'cost_fusion_params': DEFAULT_PARAMS, # from cost_fusion
-        }
+        # Load parameters from the YAML file
+        params_path = "/home/autodrive_devkit/src/simulator_LLM/car_control/planner/params.yaml"
+        with open(params_path, 'r') as f:
+            self.params = yaml.safe_load(f)
 
         # Load lanes and instantiate controllers
-        # TODO: Make file paths configurable
+        lane_paths = self.params['lane_csv_paths']
         self.lanes = load_three_lanes(
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/Centerline_points.csv",
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/inner_bound_points.csv",
-            "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/outer_bound_points.csv"
+            lane_paths['center'],
+            lane_paths['inner'],
+            lane_paths['outer']
         )
         lanes_dict = {
             'center': self.lanes.center,

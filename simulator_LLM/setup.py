@@ -6,11 +6,12 @@ package_name = 'car_control'
 setup(
     name=package_name,
     version='0.0.0',
-    packages=find_packages(exclude=['test']),
+    packages=find_packages(),
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/planner', ['car_control/planner/params.yaml']),
         (os.path.join('share', package_name, 'CSVs'), glob('car_control/CSVs/*.csv')),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')), # Launch files
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')), # RViz configuration files
@@ -29,7 +30,7 @@ setup(
             'CSV_maker  = car_control.CSV_maker:main',
             'wall_following  = car_control.wall_following:main',
             'pure_pursuit = car_control.Pure_pursuit:main',
-            'behavior_planner = car_control.behavior_planner_node:main',
+            'behavior_planner = car_control.planner.behavior_planner_node:main',
             'reactive_node = car_control.reactive_node:main',
             'vlm_drive = car_control.vlm_drive_node:main',
         ],
