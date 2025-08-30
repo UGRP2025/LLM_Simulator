@@ -32,3 +32,18 @@ lane_csv_paths:
   center: "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/Centerline_points.csv"
   inner: "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/inner_bound_points.csv"
   outer: "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/outer_bound_points.csv"
+
+# VLM Advisor Parameters
+vlm_params:
+  camera_topic: "/autodrive/f1tenth_1/front_camera"
+  api_base: "http://127.0.0.1:8000/v1"
+  api_key: "EMPTY"
+  model: "qwen2_5_vl"
+  hz: 3.0
+  timeout_s: 0.3  # Timeout for the VLM call
+  conf_thresh: 0.5 # Confidence threshold
+  jpeg_w: 640
+  jpeg_h: 384
+  jpeg_q: 80
+  max_tokens: 120
+  temperature: 0.1

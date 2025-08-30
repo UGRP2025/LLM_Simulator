@@ -1,8 +1,14 @@
 import threading
 import time
 import json
-import random
+import base64
 from typing import Optional, Dict, Any
+
+import cv2
+from cv_bridge import CvBridge
+from openai import OpenAI, APIError, Timeout
+from rclpy.node import Node
+from sensor_msgs.msg import Image
 
 # --- Type Aliases ---
 HintDict = Dict[str, Any]
@@ -12,21 +18,45 @@ class VLMAdvisor:
     Manages asynchronous calls to a VLM to get driving advice.
     Operates in a separate thread and provides safety guards for the VLM output.
     """
-    def __init__(self, hz: int = 5, timeout_s: float = 0.1, conf_thresh: float = 0.6):
+    def __init__(self, node: Node, params: Dict[str, Any]):
         """
         Args:
-            hz: The frequency at which to query the VLM.
-            timeout_s: The maximum time to wait for a response from the VLM.
-            conf_thresh: The minimum confidence score to accept a hint.
+            node: The ROS2 node to use for subscriptions and parameters.
+            params: A dictionary of parameters for the VLM advisor.
         """
-        self.hz = hz
-        self.timeout_s = timeout_s
-        self.conf_thresh = conf_thresh
+        self.node = node
+        self.params = params
+        self.bridge = CvBridge()
+
+        # Get parameters
+        self.hz = self.params['hz']
+        self.timeout_s = self.params['timeout_s']
+        self.conf_thresh = self.params['conf_thresh']
+        self.jpeg_w = self.params['jpeg_w']
+        self.jpeg_h = self.params['jpeg_h']
+        self.jpeg_q = self.params['jpeg_q']
+
+        # OpenAI client setup
+        self.client = OpenAI(base_url=self.params['api_base'], api_key=self.params['api_key'])
 
         self._latest_hint: Optional[HintDict] = None
+        self._latest_image: Optional[Image] = None
         self._lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._running = False
+
+        # Subscribe to the camera topic
+        self.node.create_subscription(
+            Image,
+            self.params['camera_topic'],
+            self.image_callback,
+            1
+        )
+
+    def image_callback(self, msg: Image):
+        """Stores the latest image message."""
+        with self._lock:
+            self._latest_image = msg
 
     def start(self):
         """Starts the advisor thread."""
@@ -57,8 +87,15 @@ class VLMAdvisor:
         while self._running:
             loop_start_time = time.time()
 
+            with self._lock:
+                image = self._latest_image
+
+            if image is None:
+                time.sleep(0.1) # Wait for the first image
+                continue
+
             context = self._build_context()
-            json_str = self._mock_call_model(context)
+            json_str = self.call_hf_qwen_model(context, image)
             validated_hint = self._parse_and_validate(json_str)
             self._update_hint(validated_hint)
 
@@ -68,90 +105,70 @@ class VLMAdvisor:
 
     def _build_context(self) -> str:
         """Builds the text context/prompt for the VLM."""
-        # In a real implementation, this would gather vehicle state,
-        # perception results, etc.
-        return "EGO: v=3.5m/s, OBSTACLES: front=6.7m, ... OUTPUT_JSON:"
+        # This can be expanded with more dynamic data from the vehicle
+        return """
+        TASK: Pick a lane (inner, center, or outer) and speed (slow, normal, or fast) for a racing scenario.
+        RULES: Prioritize safety and speed. Avoid collisions. Stay on the track.
+        OUTPUT_JSON: Respond with a single JSON object containing "lane", "speed", "reason", and "confidence".
+        """
+
+    def _encode_image(self, image_msg: Image) -> str:
+        """Encodes a ROS Image message to a base64 string after JPEG compression."""
+        cv_image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
+        resized_image = cv2.resize(cv_image, (self.jpeg_w, self.jpeg_h))
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_q]
+        _, buffer = cv2.imencode('.jpg', resized_image, encode_param)
+        return base64.b64encode(buffer).decode('utf-8')
 
     def _parse_and_validate(self, json_str: Optional[str]) -> Optional[HintDict]:
         """Parses and validates the JSON string from the VLM."""
-        if json_str is None: # Handles timeout case
+        if json_str is None:
             return None
         try:
+            # The model might return a string with ```json ... ```, so we extract it.
+            if '```json' in json_str:
+                json_str = json_str.split('```json')[1].split('```')[0].strip()
             data = json.loads(json_str)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, IndexError):
+            self.node.get_logger().warn(f"[VLM] Failed to parse JSON: {json_str}")
             return None
 
-        # Schema validation
         required_keys = ["lane", "speed", "reason", "confidence"]
         if not all(key in data for key in required_keys):
+            self.node.get_logger().warn(f"[VLM] JSON missing required keys: {data}")
             return None
         if not isinstance(data['confidence'], (int, float)):
+            self.node.get_logger().warn(f"[VLM] Invalid confidence type: {data}")
             return None
 
-        # Confidence threshold validation
         if data['confidence'] < self.conf_thresh:
             return None
 
         return data
 
-    def _mock_call_model(self, context: str) -> Optional[str]:
+    def call_hf_qwen_model(self, context: str, image: Image) -> Optional[str]:
         """
-        Mocks a call to a VLM, simulating network delay and various responses.
-        Returns None if the call 'times out'.
+        Calls the HuggingFace VL model using an openai-compatible API endpoint.
         """
-        delay = random.uniform(0.02, 0.15)
-        if delay > self.timeout_s:
-            return None # Simulate timeout
-        time.sleep(delay)
+        base64_image = self._encode_image(image)
+        content = [
+            {"type": "text", "text": context},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+            },
+        ]
 
-        # Simulate different types of responses
-        roll = random.random()
-        if roll < 0.7:
-            # Valid response
-            return json.dumps({
-                "lane": random.choice(['inner', 'center', 'outer']),
-                "speed": random.choice(['slow', 'normal', 'fast']),
-                "reason": "Following the optimal path.",
-                "confidence": random.uniform(self.conf_thresh, 1.0)
-            })
-        elif roll < 0.85:
-            # Low confidence response
-            return json.dumps({
-                "lane": "center",
-                "speed": "normal",
-                "reason": "Uncertain about the object on the left.",
-                "confidence": random.uniform(0.2, self.conf_thresh - 0.01)
-            })
-        else:
-            # Malformed/invalid JSON
-            return '{"lane":"center", "speed":"fast",'
-
-# --- TODO: Stub for real HuggingFace model integration ---
-def _call_hf_qwen_model_stub(context: str, image_path: Optional[str] = None):
-    """
-    This is a stub function for integrating a real HuggingFace VL model
-    using the openai-compatible API endpoint.
-    """
-    # from openai import OpenAI
-    #
-    # # Point to the local server or HuggingFace TGI endpoint
-    # client = OpenAI(base_url="http://127.0.0.1:8080/v1", api_key="dummy")
-    #
-    # content = [{"type": "text", "text": context}]
-    # if image_path:
-    #     # Logic to encode image to base64 would go here
-    #     # content.append({"type": "image_url", ...})
-    #
-    # try:
-    #     response = client.chat.completions.create(
-    #         model="qwen",
-    #         messages=[{"role": "user", "content": content}],
-    #         max_tokens=150,
-    #         temperature=0.1,
-    #         stream=False
-    #     )
-    #     return response.choices[0].message.content
-    # except Exception as e:
-    #     print(f"[VLM ERROR] {e}")
-    #     return None
-    pass
+        try:
+            response = self.client.chat.completions.create(
+                model=self.params['model'],
+                messages=[{"role": "user", "content": content}],
+                max_tokens=self.params['max_tokens'],
+                temperature=self.params['temperature'],
+                timeout=self.timeout_s,
+                stream=False
+            )
+            return response.choices[0].message.content
+        except (APIError, Timeout) as e:
+            self.node.get_logger().error(f"[VLM ERROR] {e}")
+            return None

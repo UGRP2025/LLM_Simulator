@@ -101,7 +101,7 @@ class BehaviorPlanner(Node):
         self.pp_controllers = {name: PurePursuit(lane.waypoints, lane.meta['curvature'], self.params['pp_params']) for name, lane in lanes_dict.items()}
 
         # VLM Advisor
-        self.vlm = VLMAdvisor(hz=8, timeout_s=0.08, conf_thresh=0.6)
+        self.vlm = VLMAdvisor(self, self.params['vlm_params'])
         self.vlm.start()
 
         # Perception Module
