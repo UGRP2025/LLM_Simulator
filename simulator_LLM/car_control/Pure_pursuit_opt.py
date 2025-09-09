@@ -110,7 +110,8 @@ def get_point(PointMsg):
 
     # --- Pose & CSV log ---
     C_pose = [PointMsg.x, PointMsg.y]
-    Dict = {"positions_X": C_pose[0], "positions_y": C_pose[1]}
+    # Update Dict to include speed
+    Dict = {"x": C_pose[0], "y": C_pose[1], "speed": v_est}
     CSV_SAVE()
 
     # --- Speed estimate from IPS (low-pass) ---

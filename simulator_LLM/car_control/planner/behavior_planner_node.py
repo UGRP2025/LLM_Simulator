@@ -165,7 +165,7 @@ class BehaviorPlanner(Node):
 
         # Log pose to CSV if enabled
         if self.csv_writer:
-            self.csv_writer.writerow({'x': self.pose[0], 'y': self.pose[1], 'timestamp': current_time_sec})
+            self.csv_writer.writerow({'x': self.pose[0], 'y': self.pose[1], 'speed': self.current_speed})
 
     def cb_imu(self, msg: Imu):
         self.last_imu_time = self.get_clock().now()
