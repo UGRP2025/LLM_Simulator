@@ -64,7 +64,7 @@ def load_trajectory_data(filepath):
                 try:
                     x.append(float(row['x']))
                     y.append(float(row['y']))
-                    if 'speed' in row:
+                    if 'speed' in row and row['speed']:
                         speed.append(float(row['speed']))
                 except (ValueError, KeyError) as e:
                     print(f"Skipping malformed row in {filepath}: {row} ({e})")
@@ -76,11 +76,14 @@ def load_trajectory_data(filepath):
                     try:
                         x.append(float(row[0]))
                         y.append(float(row[1]))
-                        if len(row) >= 3:
+                        if len(row) >= 3 and row[2]:
                             speed.append(float(row[2]))
                     except ValueError:
                         continue
     
+    if not x or not y:
+        return None, None, None
+
     path_xy = np.array(list(zip(x, y)))
     speed_array = np.array(speed) if speed else None
     
@@ -106,7 +109,7 @@ def plot_comparison(data_dict):
     for name, data in data_dict.items():
         if data['path'] is not None and len(data['path']) > 0:
             ax1.plot(data['path'][:, 0], data['path'][:, 1], 
-                     label=name, color=colors[name], linestyle=linestyles[name])
+                     label=name, color=colors.get(name, 'r'), linestyle=linestyles.get(name, '-'))
     
     ax1.set_xlabel('X (meters)')
     ax1.set_ylabel('Y (meters)')
@@ -118,7 +121,7 @@ def plot_comparison(data_dict):
     for name, data in data_dict.items():
         if data['speed'] is not None and data['dist'] is not None and len(data['speed']) > 0:
             ax2.plot(data['dist'], data['speed'], 
-                     label=name, color=colors[name], linestyle=linestyles[name])
+                     label=name, color=colors.get(name, 'r'), linestyle=linestyles.get(name, '-'))
 
     ax2.set_xlabel('Distance Along Path (meters)')
     ax2.set_ylabel('Speed (m/s)')
@@ -129,10 +132,44 @@ def plot_comparison(data_dict):
     print("Saved comparison plot to research_result_comparison.png")
     plt.show()
 
+def plot_individual_performance(name, data, ideal_path):
+    """Plots the trajectory and speed profile for a single algorithm."""
+    if data['path'] is None or len(data['path']) == 0:
+        print(f"No data to plot for {name}. Skipping individual plot.")
+        return
+
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
+    fig.suptitle(f'Performance Analysis: {name}', fontsize=18, fontweight='bold')
+
+    # Plot 1: Trajectory
+    ax1.set_title('Trajectory', fontsize=14)
+    if ideal_path is not None:
+        ax1.plot(ideal_path[:, 0], ideal_path[:, 1], color='k', linestyle='--', label='Centerline')
+    ax1.plot(data['path'][:, 0], data['path'][:, 1], color='b', label=f'{name} Path')
+    ax1.set_xlabel('X (meters)')
+    ax1.set_ylabel('Y (meters)')
+    ax1.axis('equal')
+    ax1.legend()
+
+    # Plot 2: Speed Profile
+    ax2.set_title('Speed Profile', fontsize=14)
+    if data['speed'] is not None and data['dist'] is not None and len(data['speed']) > 0:
+        ax2.plot(data['dist'], data['speed'], color='r', label=f'{name} Speed')
+    ax2.set_xlabel('Distance Along Path (meters)')
+    ax2.set_ylabel('Speed (m/s)')
+    ax2.legend()
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    
+    filename = f"performance_{name.replace(' ', '_')}.png"
+    plt.savefig(filename)
+    print(f"Saved individual plot to {filename}")
+    plt.close(fig)  # Close the figure to free up memory
+
 # --- Main Execution ---
 
 if __name__ == "__main__":
-    # Define absolute paths to default CSV files
     base_path = "/home/ugrp/simulator/simulator_LLM/car_control/CSVs"
     
     parser = argparse.ArgumentParser(description="Compare the performance of different driving algorithms.")
@@ -146,16 +183,21 @@ if __name__ == "__main__":
     pp_path, pp_speed, pp_dist = load_trajectory_data(args.pp_actual)
     vlm_path, vlm_speed, vlm_dist = load_trajectory_data(args.vlm_actual)
 
-    # Compute ideal speed for the centerline path
     ideal_speed = None
     if ideal_path is not None and len(ideal_path) > 0:
         ideal_speed = compute_ideal_speed(ideal_path)
 
-    # Organize data for plotting
     data_to_plot = {
         "Ideal": {'path': ideal_path, 'speed': ideal_speed, 'dist': ideal_dist},
         "Pure Pursuit": {'path': pp_path, 'speed': pp_speed, 'dist': pp_dist},
         "VLM Planner": {'path': vlm_path, 'speed': vlm_speed, 'dist': vlm_dist}
     }
 
+    # Plot the main comparison figure
     plot_comparison(data_to_plot)
+
+    # Plot individual figures for each algorithm against the ideal path
+    ideal_path_ref = data_to_plot['Ideal']['path']
+    for name, data in data_to_plot.items():
+        plot_individual_performance(name, data, ideal_path_ref)
+
