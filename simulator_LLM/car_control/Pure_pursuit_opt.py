@@ -36,9 +36,15 @@ V_ALPHA = 0.3  # low-pass gain for speed estimate
 Dict = {}
 def CSV_SAVE():
     global flag
-    with open("/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/actual.csv", mode="a") as csvfile:
+    output_path = "/home/autodrive_devkit/src/simulator_LLM/car_control/CSVs/PP_actual.csv"
+    
+    # On the first call, open in write mode 'w' to create a new file.
+    # On subsequent calls, open in append mode 'a'.
+    mode = 'w' if flag == 0 else 'a'
+
+    with open(output_path, mode=mode, newline='') as csvfile:
         fieldnames = ["positions_X", "positions_y"]
-        writer = csv.DictWriter(csvfile, fieldnames = fieldnames)
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         if flag == 0:
             writer.writeheader()
             flag = 1
