@@ -43,7 +43,7 @@ def CSV_SAVE():
     mode = 'w' if flag == 0 else 'a'
 
     with open(output_path, mode=mode, newline='') as csvfile:
-        fieldnames = ["positions_X", "positions_y"]
+        fieldnames = ["x", "y", "speed"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         if flag == 0:
             writer.writeheader()

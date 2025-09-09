@@ -89,7 +89,7 @@ class BehaviorPlanner(Node):
         if self.log_path:
             try:
                 self.csv_file = open(self.log_path, 'w', newline='')
-                fieldnames = ['x', 'y', 'timestamp']
+                fieldnames = ['x', 'y', 'speed']
                 self.csv_writer = csv.DictWriter(self.csv_file, fieldnames=fieldnames)
                 self.csv_writer.writeheader()
                 self.get_logger().info(f"Logging actual trajectory to {self.log_path}")
