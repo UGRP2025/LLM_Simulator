@@ -11,6 +11,7 @@ import json
 import pandas as pd
 import yaml
 import os
+import csv
 
 # Import all the implemented modules
 from car_control.planner.lane_loader import load_three_lanes
@@ -77,9 +78,24 @@ def extract_yaw_from_quaternion(q: Quaternion) -> float:
     return np.arctan2(t3, t4)
 
 class BehaviorPlanner(Node):
-    def __init__(self, offline_mode=False):
+    def __init__(self, offline_mode=False, log_path=None):
         super().__init__('behavior_planner')
         self.offline_mode = offline_mode
+
+        # Trajectory logging setup
+        self.log_path = log_path
+        self.csv_file = None
+        self.csv_writer = None
+        if self.log_path:
+            try:
+                self.csv_file = open(self.log_path, 'w', newline='')
+                fieldnames = ['x', 'y', 'timestamp']
+                self.csv_writer = csv.DictWriter(self.csv_file, fieldnames=fieldnames)
+                self.csv_writer.writeheader()
+                self.get_logger().info(f"Logging actual trajectory to {self.log_path}")
+            except IOError as e:
+                self.get_logger().error(f"Failed to open log file {self.log_path}: {e}")
+                self.csv_writer = None # Disable logging
 
         # Load parameters from the YAML file
         params_path = "/home/autodrive_devkit/src/simulator_LLM/car_control/planner/params.yaml"
@@ -146,6 +162,10 @@ class BehaviorPlanner(Node):
 
         self.pose = new_pose
         self.last_pose_time = current_time_sec
+
+        # Log pose to CSV if enabled
+        if self.csv_writer:
+            self.csv_writer.writerow({'x': self.pose[0], 'y': self.pose[1], 'timestamp': current_time_sec})
 
     def cb_imu(self, msg: Imu):
         self.last_imu_time = self.get_clock().now()
@@ -237,10 +257,15 @@ class BehaviorPlanner(Node):
 
     def stop_all(self):
         self.vlm.stop()
+        # Close CSV file
+        if self.csv_file:
+            self.csv_file.close()
+            self.get_logger().info(f"Trajectory log saved to {self.log_path}")
 
 def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--offline_replay', type=str, help='Path to CSV for offline replay')
+    parser.add_argument('--log-path', type=str, default=None, help='If provided, logs the actual vehicle trajectory to this CSV file path.')
     # In a ROS2 launch file, args can be passed differently. For standalone, this works.
     cli_args, _ = parser.parse_known_args()
 
@@ -258,7 +283,7 @@ def main(args=None):
 
         if not rclpy.ok():
             rclpy.init()
-        planner_node = BehaviorPlanner(offline_mode=True)
+        planner_node = BehaviorPlanner(offline_mode=True, log_path=cli_args.log_path)
         output_log_path = "replay_output.jsonl"
 
         print(f"Processing {len(replay_df)} data points from {cli_args.offline_replay}...")
@@ -279,7 +304,7 @@ def main(args=None):
     else:
         print("Running in LIVE ROS2 mode.")
         rclpy.init(args=args)
-        planner_node = BehaviorPlanner()
+        planner_node = BehaviorPlanner(log_path=cli_args.log_path)
         try:
             rclpy.spin(planner_node)
         except KeyboardInterrupt:
@@ -291,3 +316,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
