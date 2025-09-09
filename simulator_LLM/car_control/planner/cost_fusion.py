@@ -86,14 +86,23 @@ def select_lane(
         if r != 'center':
             normalized_costs[r] += weights.get('zeta', 0.2) # Add penalty to non-center lanes
 
-    # 5. Apply hysteresis penalty for lane changes
-    final_costs = apply_lane_change_penalty(
-        normalized_costs,
-        previous_lane,
-        penalty=weights.get('delta', 0.3)
-    )
+    # 5. Apply dynamic, curvature-aware penalty for lane changes
+    if previous_lane and previous_lane in metrics_by_lane:
+        # Get the curvature of the lane we are currently on
+        current_curvature = abs(metrics_by_lane[previous_lane].get('curvature', 0.0))
+        
+        # Base penalty for any lane change
+        base_penalty = weights.get('delta', 0.3)
+        
+        # Additional penalty proportional to how sharp the current curve is
+        curvature_penalty_gain = weights.get('eta', 5.0)
+        dynamic_penalty = base_penalty + (curvature_penalty_gain * current_curvature)
+
+        for r in available_lanes:
+            if r != previous_lane:
+                normalized_costs[r] += dynamic_penalty
 
     # 6. Select the lane with the minimum final cost
-    best_lane = min(final_costs, key=final_costs.get)
+    best_lane = min(normalized_costs, key=normalized_costs.get)
     
     return best_lane

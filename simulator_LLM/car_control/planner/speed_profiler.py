@@ -14,13 +14,14 @@ class SpeedProfiler:
         Initializes the SpeedProfiler with parameters.
         Args:
             params: A dictionary containing speed-related parameters.
-                    Expected keys: 'vmax', 'default_speed', 'vmin', 'mu', 'obs_kd'.
         """
-        self.V_MAX = params.get('vmax', 0.2)  # Absolute speed limit
-        self.DEFAULT_SPEED = params.get('default_speed', 0.1) # Target cruising speed
+        self.V_MAX = params.get('vmax', 1.0)
+        self.DEFAULT_SPEED = params.get('default_speed', 0.1)
         self.V_MIN = params.get('vmin', 0.05)
         self.MU = params.get('mu', 0.9)
         self.OBS_KD = params.get('obs_kd', 0.8)
+        self.CURVATURE_START_SLOWING = params.get('curvature_start_slowing', 0.2)
+        self.CURVATURE_MAX_SLOWING = params.get('curvature_max_slowing', 1.0)
         self.G = 9.81
         self.EPSILON = 1e-6
 
@@ -41,7 +42,7 @@ class SpeedProfiler:
 
     def speed_to_throttle(self, speed: float) -> float:
         """
-        Scales a target speed (m/s) to a normalized throttle command [0, 1].
+        Scales a target speed value to a normalized throttle command [0, 1].
         """
         if self.V_MAX <= 0:
             return 0.0
@@ -57,9 +58,18 @@ class SpeedProfiler:
         """
         Calculates the target speed based on curvature, obstacles, and VLM hint.
         """
-        # 1. Curvature-based speed limit
+        # 1. Curvature-based speed limit (New Logic)
         curvature = abs(metrics_for_lane.get('curvature', 0.0))
-        v_curve = np.sqrt(max(self.EPSILON, self.MU * self.G / (curvature + self.EPSILON)))
+        if curvature < self.CURVATURE_START_SLOWING:
+            v_curve = self.DEFAULT_SPEED  # No slowing needed
+        else:
+            # Linearly interpolate between default_speed and vmin based on curvature
+            slowing_range = max(self.EPSILON, self.CURVATURE_MAX_SLOWING - self.CURVATURE_START_SLOWING)
+            interp_fraction = (curvature - self.CURVATURE_START_SLOWING) / slowing_range
+            interp_fraction = np.clip(interp_fraction, 0.0, 1.0)
+            
+            speed_range = self.DEFAULT_SPEED - self.V_MIN
+            v_curve = self.DEFAULT_SPEED - interp_fraction * speed_range
 
         # 2. Obstacle-based speed limit
         lane_free_dist = metrics_for_lane.get('free_distance', float('inf'))
@@ -70,8 +80,8 @@ class SpeedProfiler:
         speed_factor = self._get_speed_hint_factor(hint)
 
         # 4. Combine and constrain
-        # Aim for default speed, but respect physical limits (curve, obs)
-        v_target = min(v_curve, v_obs, self.DEFAULT_SPEED) * speed_factor
+        # Aim for the curvature-adjusted speed, but also respect obstacles
+        v_target = min(v_curve, v_obs) * speed_factor
         
         # If target speed is positive but below minimum, raise to minimum
         if v_target > self.EPSILON:

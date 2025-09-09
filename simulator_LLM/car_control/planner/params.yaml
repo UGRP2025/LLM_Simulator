@@ -17,6 +17,9 @@ speed:
   mu: 0.9        # Assumed friction coefficient for curvature calculations.
   obs_kd: 0.8    # Proportional gain for obstacle-based speed reduction.
   throttle_scale: 1.0 # Scale for throttle command. Use 1.0 for float percentage (0.0-1.0).
+  # Curvature-based slowing parameters
+  curvature_start_slowing: 0.2 # Curvature value to start slowing down.
+  curvature_max_slowing: 1.0   # Curvature value to be at minimum speed.
 
 # Safety Thresholds
 safety_thresholds:
@@ -29,6 +32,7 @@ cost_fusion_params:
     beta: 1.0    # curvature
     gamma: 1.0   # progress
     delta: 0.3   # lane_change_penalty
+    eta: 5.0     # curvature_lane_change_penalty_gain
     w_lane: 0.5  # vlm_lane_hint
     zeta: 0.4    # center_lane_preference
     max_hint_age_s: 2.0 # Max age of a VLM hint before its weight becomes 0
