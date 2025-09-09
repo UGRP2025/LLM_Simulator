@@ -9,8 +9,14 @@ pp_params:
   lookahead_speed_gain: 0.5
   lookahead_curvature_gain: 0.1
 
-# Vehicle Speed Limit
-vmax: 6.0
+# Speed Control Parameters
+speed:
+  vmax: 1.0      # The speed value that corresponds to 100% throttle (0.0-1.0 scale).
+  default_speed: 0.10 # Target speed value, corresponds to 10% throttle (0.1).
+  vmin: 0.05      # Minimum speed value, corresponds to 5% throttle (0.05).
+  mu: 0.9        # Assumed friction coefficient for curvature calculations.
+  obs_kd: 0.8    # Proportional gain for obstacle-based speed reduction.
+  throttle_scale: 1.0 # Scale for throttle command. Use 1.0 for float percentage (0.0-1.0).
 
 # Safety Thresholds
 safety_thresholds:
